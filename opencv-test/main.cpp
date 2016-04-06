@@ -14,7 +14,7 @@ const int iHues[4][2]={
     {103,132} //blue
 };
 
-int iColor = 1;
+int iColor = 2;
 
 int iLowH = iHues[iColor][0];
 int iHighH = iHues[iColor][1];
@@ -47,11 +47,16 @@ int main( int argc, char** argv )
     int iHighS = 255;
     int iLowV = 135;
     int iHighV = 255;
+    
+    int iCloseSize = 50;
 
 
     
     //Create trackbars in "Control" window
-    createTrackbar("Color", "Control", &iColor, 3, ColorChange);
+//    createTrackbar("Color", "Control", &iColor, 3, ColorChange);
+    
+    createTrackbar("LowH", "Control", &iLowH, 179); //Hue (0 - 179)
+    createTrackbar("HighH", "Control", &iHighH, 179);
     
     createTrackbar("LowS", "Control", &iLowS, 255); //Saturation (0 - 255)
     createTrackbar("HighS", "Control", &iHighS, 255);
@@ -89,16 +94,17 @@ int main( int argc, char** argv )
         cvtColor(imgOriginal, imgHSV, COLOR_BGR2HSV); //Convert the captured frame from BGR to HSV
         
         Mat imgThresholded;
+        Mat imgOpenClosed;
         
         inRange(imgHSV, Scalar(iLowH, iLowS, iLowV), Scalar(iHighH, iHighS, iHighV), imgThresholded); //Threshold the image
         
         //morphological opening (removes small objects from the foreground)
-        erode(imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
-        dilate( imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
+//        erode(imgThresholded, imgOpenClosed, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)) );
+//        dilate( imgOpenClosed, imgOpenClosed, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)) );
         
         //morphological closing (removes small holes from the foreground)
-        dilate( imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
-        erode(imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
+        dilate( imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize*2, iCloseSize)), Point(-1,-1) );
+        erode(imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize*2, iCloseSize)), Point(-1,-1) );
         
         //Calculate the moments of the thresholded image
         Moments oMoments = moments(imgThresholded);
@@ -125,11 +131,13 @@ int main( int argc, char** argv )
         }
         
         imshow("Thresholded Image", imgThresholded); //show the thresholded image
+//        imshow("OpenClosed Image", imgOpenClosed); //show the thresholded image
         
         imgOriginal = imgOriginal + imgLines;
         imshow("Original", imgOriginal); //show the original image
 
         int keyPressed = waitKey(30);
+
         if ( keyPressed == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
         {
             cout << "esc key is pressed by user" << endl;
@@ -153,6 +161,22 @@ int main( int argc, char** argv )
             //reset previous trace points
             iLastX = -1;
             iLastY = -1;
+        }
+        if ( keyPressed == 63232){
+            iLowH++;
+            cout << "Lower hue: " << iLowH << endl;
+        }
+        if ( keyPressed == 63233){
+            iLowH--;
+            cout << "Lower hue: " << iLowH << endl;
+        }
+        if ( keyPressed == 63235){
+            iHighH++;
+            cout << "Upper hue: " << iHighH << endl;
+        }
+        if ( keyPressed == 63234){
+            iHighH--;
+            cout << "Upper hue: " << iHighH << endl;
         }
     }
 
