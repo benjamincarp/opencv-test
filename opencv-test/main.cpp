@@ -1,11 +1,81 @@
 
 //=================================load/save video=================================================
 //
-#include "opencv2/highgui/highgui.hpp"
 #include <iostream>
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
 
 using namespace cv;
 using namespace std;
+
+const int iHues[4][2]={
+    {0,179}, //all colors
+    {168,179}, //red
+    {77,90}, //green
+    {103,132} //blue
+};
+
+int iColor = 1;
+
+int iLowH = iHues[iColor][0];
+int iHighH = iHues[iColor][1];
+int iLowS = 140;
+int iHighS = 255;
+int iLowV = 135;
+int iHighV = 255;
+
+int iCloseSize = 50;
+
+int iLastX = -1;
+int iLastY = -1;
+
+Mat imgLines;
+Mat imgOriginal;
+Mat imgHSV;
+Mat imgThresholded;
+
+void processFrame(){
+    cvtColor(imgOriginal, imgHSV, COLOR_BGR2HSV); //Convert the captured frame from BGR to HSV
+    
+    inRange(imgHSV, Scalar(iLowH, iLowS, iLowV), Scalar(iHighH, iHighS, iHighV), imgThresholded); //Threshold the image
+    
+    //morphological opening (removes small objects from the foreground)
+    //        erode(imgThresholded, imgOpenClosed, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)) );
+    //        dilate( imgOpenClosed, imgOpenClosed, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)) );
+    
+    //morphological closing (removes small holes from the foreground)
+    dilate( imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize*2, iCloseSize)), Point(-1,-1) );
+    erode(imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize*2, iCloseSize)), Point(-1,-1) );
+    
+    //Calculate the moments of the thresholded image
+    Moments oMoments = moments(imgThresholded);
+    
+    double dM01 = oMoments.m01;
+    double dM10 = oMoments.m10;
+    double dArea = oMoments.m00;
+    
+    // if the area <= 10000, I consider that the there are no object in the image and it's because of the noise, the area is not zero
+    if (dArea > 10000)
+    {
+        //calculate the position of the ball
+        int posX = dM10 / dArea;
+        int posY = dM01 / dArea;
+        
+        if (iLastX >= 0 && iLastY >= 0 && posX >= 0 && posY >= 0)
+        {
+            //Draw a red line from the previous point to the current point
+            line(imgLines, Point(posX, posY), Point(iLastX, iLastY), Scalar(0,0,255), 2);
+        }
+        
+        iLastX = posX;
+        iLastY = posY;
+    }
+    
+    imgOriginal = imgOriginal + imgLines; //draw the line
+    
+    imshow("out", imgOriginal);
+    
+}
 
 int main(int argc, char* argv[])
 {
@@ -20,8 +90,6 @@ int main(int argc, char* argv[])
     double dFps = cap.get(CV_CAP_PROP_FPS); //get the frames per seconds of the video
     cout << "Frame per seconds : " << dFps << endl;
     
-//    namedWindow("MyVideo",CV_WINDOW_AUTOSIZE); //create a window called "MyVideo"
-    
     double dWidth = cap.get(CV_CAP_PROP_FRAME_WIDTH); //get the width of frames of the video
     double dHeight = cap.get(CV_CAP_PROP_FRAME_HEIGHT); //get the height of frames of the video
     cout << "Frame Size = " << dWidth << "x" << dHeight << endl;
@@ -33,7 +101,7 @@ int main(int argc, char* argv[])
     double dFrameCount = cap.get(CV_CAP_PROP_FRAME_COUNT);
     cout << "Frame count = " << dFrameCount << endl;
 
-    VideoWriter oVideoWriter ("output.mov", CV_FOURCC('m','p', '4', 'v'), dFps, frameSize, true); //initialize the VideoWriter object
+    VideoWriter oVideoWriter ("output.mp4", CV_FOURCC('m','p', '4', 'v'), dFps, frameSize, true); //initialize the VideoWriter object
     
     if ( !oVideoWriter.isOpened() ) //if not initialize the VideoWriter successfully, exit the program
     {
@@ -43,12 +111,12 @@ int main(int argc, char* argv[])
     
     int iFrames = 0;
     
+    //Create a black image with the size as the camera output
+    imgLines = Mat::zeros( frameSize, CV_8UC3 );;
+    
     while (1)
     {
-        
-        Mat frame;
-        
-        bool bSuccess = cap.read(frame); // read a new frame from video
+        bool bSuccess = cap.read(imgOriginal); // read a new frame from video
         
         iFrames++;
         if (iFrames % 25 == 0){
@@ -57,19 +125,18 @@ int main(int argc, char* argv[])
         
         if (!bSuccess) //if not success, break loop
         {
-            cout << "ERROR: Cannot read a frame from video file" << endl;
+            cout << "No more frames" << endl;
             break;
         }
+        processFrame();
         
-        oVideoWriter.write(frame); //writer the frame into the file
-        
-//        imshow("MyVideo", frame); //show the frame in "MyVideo" window
-        
-        if (waitKey(10) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
+//        oVideoWriter.write(imgOriginal); //writer the frame into the file
+        if (waitKey(1) == 27) //wait for 'esc' key press for 5ms. If 'esc' key is pressed, break loop
         {
             cout << "esc key is pressed by user" << endl;
-            break; 
+            break;
         }
+
     }
     
     return 0;
