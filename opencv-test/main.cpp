@@ -15,7 +15,7 @@ const int iHues[4][2]={
     {103,132} //blue
 };
 
-int iColor = 1;
+int iColor = 2;
 
 int iLowH = iHues[iColor][0];
 int iHighH = iHues[iColor][1];
@@ -24,7 +24,8 @@ int iHighS = 255;
 int iLowV = 135;
 int iHighV = 255;
 
-int iCloseSize = 50;
+int iCloseSize = 30;
+int iOpenSize = 4;
 
 int iLastX = -1;
 int iLastY = -1;
@@ -39,13 +40,13 @@ void processFrame(){
     
     inRange(imgHSV, Scalar(iLowH, iLowS, iLowV), Scalar(iHighH, iHighS, iHighV), imgThresholded); //Threshold the image
     
-    //morphological opening (removes small objects from the foreground)
-    //        erode(imgThresholded, imgOpenClosed, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)) );
-    //        dilate( imgOpenClosed, imgOpenClosed, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)) );
-    
     //morphological closing (removes small holes from the foreground)
-    dilate( imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize*2, iCloseSize)), Point(-1,-1) );
-    erode(imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize*2, iCloseSize)), Point(-1,-1) );
+    dilate( imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)), Point(-1,-1) );
+    erode(imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iCloseSize, iCloseSize)), Point(-1,-1) );
+    
+    //morphological opening (removes small objects from the foreground)
+    erode(imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iOpenSize, iOpenSize)) );
+    dilate( imgThresholded, imgThresholded, getStructuringElement(MORPH_ELLIPSE, Size(iOpenSize, iOpenSize)) );
     
     //Calculate the moments of the thresholded image
     Moments oMoments = moments(imgThresholded);
@@ -73,13 +74,23 @@ void processFrame(){
     
     imgOriginal = imgOriginal + imgLines; //draw the line
     
-    imshow("out", imgOriginal);
+    imshow("output", imgThresholded);
+    
+    //edge detection
+//    Mat gray, edge, draw;
+//    cvtColor(imgOriginal, gray, CV_BGR2GRAY);
+//    
+//    Canny( gray, edge, 5, 75, 3);
+//    
+//    edge.convertTo(draw, CV_8U);
+//    imshow("out", draw);
     
 }
 
 int main(int argc, char* argv[])
 {
-    VideoCapture cap("test.mp4"); // open the video file for reading
+    const string file = "green-box.mov";
+    VideoCapture cap("input/" + file); // open the video file for reading
     
     if ( !cap.isOpened() )  // if not success, exit program
     {
@@ -101,7 +112,7 @@ int main(int argc, char* argv[])
     double dFrameCount = cap.get(CV_CAP_PROP_FRAME_COUNT);
     cout << "Frame count = " << dFrameCount << endl;
 
-    VideoWriter oVideoWriter ("output.mp4", CV_FOURCC('m','p', '4', 'v'), dFps, frameSize, true); //initialize the VideoWriter object
+    VideoWriter oVideoWriter ("output/" + file, CV_FOURCC('m','p', '4', 'v'), dFps, frameSize, true); //initialize the VideoWriter object
     
     if ( !oVideoWriter.isOpened() ) //if not initialize the VideoWriter successfully, exit the program
     {
@@ -113,6 +124,8 @@ int main(int argc, char* argv[])
     
     //Create a black image with the size as the camera output
     imgLines = Mat::zeros( frameSize, CV_8UC3 );;
+    
+    namedWindow("output",WINDOW_NORMAL);
     
     while (1)
     {
@@ -130,7 +143,7 @@ int main(int argc, char* argv[])
         }
         processFrame();
         
-//        oVideoWriter.write(imgOriginal); //writer the frame into the file
+        oVideoWriter.write(imgOriginal); //writer the frame into the file
         if (waitKey(1) == 27) //wait for 'esc' key press for 5ms. If 'esc' key is pressed, break loop
         {
             cout << "esc key is pressed by user" << endl;
